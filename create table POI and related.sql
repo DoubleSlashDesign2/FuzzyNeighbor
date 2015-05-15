@@ -25,14 +25,18 @@ POI_pk INT NOT NULL CONSTRAINT PK_POI PRIMARY KEY,
 POIName NVARCHAR(100) NOT NULL,
 POISubcategory_fk INT NOT NULL CONSTRAINT DF_POI_POISubcategory_fk DEFAULT 0,   /*  cafe, ATM. cemetrary  */
 
-AddressLine NVARCHAR(256) NOT NULL,                                     /* Geocode this address */
-AddressLastLine NVARCHAR(256) NOT NULL,                              /* Mailable last line*/
-AdministrativeDistrict NVARCHAR(256) NOT NULL,                      /* State or Province or Autonomous Community*/
-AdministrativeDistrict2 NVARCHAR(256) NOT NULL,                    /* County */
-Locality NVARCHAR(256) NOT NULL,                                            /* Municipality */                           
-PostalCode NVARCHAR(16) NOT NULL,
+/* If its a mailable location, or the address is known */
+AddressLine NVARCHAR(256)  NULL,                                             /* Geocode this address if available */
+AddressLastLine NVARCHAR(256)  NULL,                                      /* Mailable last line, if applicable */
+PostalCode NVARCHAR(16)  NULL,                                                 /* If a mailable location */ 
+
+/* Enclosing geographies. */
+AdministrativeDistrict NVARCHAR(256) NOT NULL,                      /* e.g., a State or Province or Autonomous Community*/
+AdministrativeDistrict2 NVARCHAR(256) NOT NULL,                    /* e.g., a County */
+Locality NVARCHAR(256) NOT NULL,                                            /* e.g., a Municipality */                           
 CountryCodeISO3 NCHAR(3)  NOT NULL,
 
+/* Display and Nearest neigbor search  */
 MapPoint GEOGRAPHY NULL,                                                        /* Business rule will require coordindates to be WGS 84 */
 Longitude DECIMAL(11, 6) NULL,
 Latitude DECIMAL(11, 6) NULL,
@@ -43,7 +47,9 @@ StandardizedGeocodePrecision NVARCHAR(40) NULL,
 GeocodeSource_fk INT  NOT NULL CONSTRAINT DF_POI_GeocodeSource_fk DEFAULT 0,
 GeocodeDate DATETIME NULL,
 
+/* Where did the data record originate. */
 DataSource_fk  INT NOT NULL CONSTRAINT DF_POI_DataSource_fk DEFAULT 0,
+DataSourceNaturalKey NVARCHAR(40) NOT NULL,
 CreatedOnDate DATETIME NULL CONSTRAINT DF_POI_CreatedOnDate DEFAULT CURRENT_TIMESTAMP,
 LastUpdateDate DATETIME NULL CONSTRAINT DF_POI_LastUpdateDate  DEFAULT CURRENT_TIMESTAMP
 
