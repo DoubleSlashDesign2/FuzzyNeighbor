@@ -22,7 +22,7 @@ CREATE TABLE AppData.POI
 (
 POI_pk INT NOT NULL CONSTRAINT PK_POI PRIMARY KEY,
 
-POIName NVARCHAR(100) NOT NULL,
+POIName NVARCHAR(256) NOT NULL,
 POISubcategory_fk INT NOT NULL CONSTRAINT DF_POI_POISubcategory_fk DEFAULT 0,   /*  cafe, ATM. cemetrary  */
 
 /* If its a mailable location, or the address is known */
