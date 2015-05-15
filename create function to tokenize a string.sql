@@ -1,4 +1,4 @@
-Use FuzzyNeighor;
+Use FuzzyNeighbor;
 GO
 IF OBJECT_ID (N'App.fnTokenizeTableOfStrings') IS NOT NULL
     DROP FUNCTION App.fnTokenizeTableOfStrings;

@@ -1,4 +1,4 @@
-Use FuzzyNeighor;
+Use FuzzyNeighbor;
 /*
 Assumption:  The Levenshtein DLL is has been registered with db server.
 */  

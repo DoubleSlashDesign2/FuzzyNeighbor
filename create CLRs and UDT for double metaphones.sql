@@ -1,8 +1,18 @@
-Use FuzzyNeighor;
+Use FuzzyNeighbor;
 
 /*
 Assumption:  The DoubleMetaphone DLL is has been registered with db server.
 */
+
+
+/*
+* Server side
+
+CREATE ASSEMBLY DoubleMetaphone
+FROM 'C:\Program Files\Microsoft SQL Server\MSSQL.1\MSSQL\Binn\DoubleMetaphone.dll'
+*/
+
+GO
 
 CREATE TYPE App.DoubleMetaphoneResult
 EXTERNAL NAME DoubleMetaphone.[Phonetic.Tools.DoubleMetaphoneResult];

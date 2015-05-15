@@ -1,4 +1,4 @@
-USE FuzzyNeighor;
+USE FuzzyNeighbor;
 GO
 IF Type_ID(N'App.TokenizerOutput') IS NOT NULL
     DROP TYPE App.TokenizerOutput;

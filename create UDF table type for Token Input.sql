@@ -1,4 +1,4 @@
-Use FuzzyNeighor;
+Use FuzzyNeighbor;
 GO
 
 IF Type_ID(N'App.TokenizerInput') IS NOT NULL
