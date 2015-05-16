@@ -1,7 +1,11 @@
 Use FuzzyNeighbor;
+GO
 /*
-Assumption:  The Levenshtein DLL is has been registered with db server.
-*/  
+* Server side
+
+CREATE ASSEMBLY Levenshtein
+FROM '.....\MSSQL\Binn\Levenshtein.dll'
+*/
 
 GO
 IF Object_ID('App.fnLevenshteinPercent') IS NOT NULL

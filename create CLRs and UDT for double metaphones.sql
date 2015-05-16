@@ -1,15 +1,11 @@
 Use FuzzyNeighbor;
-
-/*
-Assumption:  The DoubleMetaphone DLL is has been registered with db server.
-*/
-
+GO
 
 /*
 * Server side
 
 CREATE ASSEMBLY DoubleMetaphone
-FROM 'C:\Program Files\Microsoft SQL Server\MSSQL.1\MSSQL\Binn\DoubleMetaphone.dll'
+FROM '.....\MSSQL\Binn\DoubleMetaphone.dll'
 */
 
 GO
