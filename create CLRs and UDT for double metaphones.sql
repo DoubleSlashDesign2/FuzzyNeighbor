@@ -34,3 +34,22 @@ RETURNS Integer
 AS
 EXTERNAL NAME DoubleMetaphone.[Phonetic.Tools.DoubleMetaphone].DoubleMetaphoneCompare
 GO
+/*
+
+--Test encoding with an example:
+
+DECLARE  @InputStringsToShred App.TokenizerInput ;
+
+INSERT INTO @InputStringsToShred (SourceKey, SourceString)
+    VALUES    (2070794, 'Providence Park'),
+                      (1119167,'Columbia Heights School (historical)')
+                    ;
+SELECT 
+    Tokenizer_sfk,
+    TokenOrdinal,
+    Token,
+    App.fnDoubleMetaphoneEncode(Token)
+FROM App.fnTokenizeTableOfStrings(@InputStringsToShred);
+
+*/
+

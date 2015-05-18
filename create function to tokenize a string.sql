@@ -63,7 +63,7 @@ AS
 GO
 
 /*
-Example:
+--Example:
 DECLARE  @InputStringsToShred App.TokenizerInput ;
 INSERT INTO @InputStringsToShred (SourceKey, SourceString)
     VALUES    (2070794, 'Providence Park'),

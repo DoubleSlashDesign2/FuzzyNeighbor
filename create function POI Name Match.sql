@@ -15,7 +15,7 @@ CREATE FUNCTION App.fnPOI_Select_ByName
                  @MaximumNumberOfMatches INT = 1
 
                 )
-RETURNS @PossibleMatchingFeaturesList  TABLE 
+RETURNS @PossibleMatchingPOI  TABLE 
 (
     POI_fk INT NOT NULL, 
     MatchRankOrder INT NOT NULL,
@@ -34,7 +34,7 @@ BEGIN
                     @InputStringTokenXref AS App.TokenizerOutput
                 ;
                 INSERT INTO @InputStringList(SourceKey, SourceString)
-                   SELECT ISNULL(Request_pk,1), NameRequest FROM @Request;
+                   SELECT ISNULL(Request_pk,1), RequestValue FROM @Request;
 
                 INSERT INTO @InputStringTokenXref (Tokenizer_sfk, TokenOrdinal, Token, Metaphone2)
                     SELECT 
@@ -167,7 +167,7 @@ BEGIN
                                 COUNT(*)  as CountOfTokensThatPassed,
                                 AVG(s.LevenshteinPercent) AS LevenshteinIndex       --its a percentage, so sort of equivalent to a normalized value
                             FROM LevenshteinPercent s 
-                            GROUP BY s.FeatureSearchName_pk
+                            GROUP BY s.Candidate_pk
                           ) a 
                             CROSS APPLY InputTokenCounts q  
                     )
@@ -190,21 +190,21 @@ BEGIN
                          FROM PossibleMatches p
                          GROUP BY Candidate_pk
                      )
-                     ,TopChoices (POI_pk, MeanMatchIndex, RankOrder, SelectionSequence)
+                     ,TopChoices (POI_fk, MeanMatchIndex, RankOrder, SelectionSequence)
                      AS
                      (
                         SELECT
                             n.POI_pk,
                             r.MeanMatchIndex,
                             r.RankOrder,
-                            ROW_NUMBER() OVER (PARTITION BY n.POI_pk ORDER BY r.RankOrder DESC, FeatureNameSequenceNumber) AS SelectionSequence
+                            ROW_NUMBER() OVER (PARTITION BY n.POI_pk ORDER BY r.RankOrder DESC  /* Sequence number for alternative names for POI_pk*/) AS SelectionSequence
                         FROM SelectionRank r
                         JOIN AppData.POI n ON r.Candidate_pk = n.POI_pk
                     )
-                    INSERT INTO @PossibleMatchingPOI (POI_pk, MatchScore, MatchRankOrder)
+                    INSERT INTO @PossibleMatchingPOI (POI_fk, MatchScore, MatchRankOrder)
                             SELECT
                                     TOP (@MaximumNumberOfMatches)
-                                    POI_pk,
+                                    POI_fk,
                                     MeanMatchIndex,
                                     RankOrder
                             FROM TopChoices
