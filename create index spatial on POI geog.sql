@@ -7,7 +7,7 @@ Go
 *   Start  with default index options.
 
 * Just in case
-*  UPDATE AppData.POI  set Geog=Geog.MakeValid()  where Geog.STIsValid()=0;;
+*  UPDATE AppData.POI  set MapPoint=MapPoint.MakeValid()  where MapPoint.STIsValid()=0;;
 
 */
 
