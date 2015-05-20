@@ -11,6 +11,24 @@ POI Table.  This is the table that we are searching.  Table is designed to be fl
 The SRID of the coordinates is required to be 4326, for WGS 84.  Throw an error if its not.
 
 */
+IF OBJECT_ID(N'[AppData].[vSubCategoryCategoryXRef]') IS NOT NULL
+    DROP VIEW [AppData].[vSubCategoryCategoryXRef];
+GO
+IF OBJECT_ID('AppData.POI') IS NOT NULL 
+    BEGIN
+        ALTER TABLE AppData.POI DROP CONSTRAINT FKC_POI_DataSource;
+        ALTER TABLE AppData.POI DROP CONSTRAINT FKC_POI_POISubcategory;
+        ALTER TABLE AppData.POI DROP CONSTRAINT FKC_POI_GeocodeSource;
+    END;
+
+ IF OBJECT_ID(N'AppData.GeocodeSource') IS NOT NULL
+    --IF NOT EXISTS (SELECT TOP 1 * FROM AppData.GeocodeSource)
+           DROP TABLE AppData.GeocodeSource;
+
+IF OBJECT_ID(N'AppData.DataSource') IS NOT NULL
+    --IF NOT EXISTS (SELECT TOP 1 * FROM AppData.DataSource)
+           DROP TABLE AppData.DataSource;
+GO
 
 IF OBJECT_ID('AppData.POI') IS NOT NULL 
  --           IF NOT EXISTS (SELECT TOP 1 * FROM AppData.POI)
@@ -20,7 +38,7 @@ GO
 
 CREATE TABLE AppData.POI
 (
-POI_pk INT NOT NULL CONSTRAINT PK_POI PRIMARY KEY,
+POI_pk INT NOT NULL IDENTITY(1,1) CONSTRAINT PK_POI PRIMARY KEY,
 
 POIName NVARCHAR(256) NOT NULL,
 POISubcategory_fk INT NOT NULL CONSTRAINT DF_POI_POISubcategory_fk DEFAULT 0,   /*  cafe, ATM. cemetrary  */
@@ -34,7 +52,7 @@ PostalCode NVARCHAR(16)  NULL,                                                 /
 AdministrativeDistrict NVARCHAR(256) NOT NULL,                      /* e.g., a State or Province or Autonomous Community*/
 AdministrativeDistrict2 NVARCHAR(256) NOT NULL,                    /* e.g., a County */
 Locality NVARCHAR(256) NOT NULL,                                            /* e.g., a Municipality */                           
-CountryCodeISO3 NCHAR(3)  NOT NULL,
+CountryCodeISO3 NCHAR(3)  NOT NULL,                                       /*  TODO: Constrain it */
 
 /* Display and Nearest neigbor search  */
 MapPoint GEOGRAPHY NULL,                                                        /* Business rule will require coordindates to be WGS 84 */
@@ -71,7 +89,7 @@ GO
 
 CREATE TRIGGER [trgPOI_LastUpdateDate]
 	ON AppData.POI
-	FOR INSERT, UPDATE
+	AFTER INSERT, UPDATE
 	AS
 	BEGIN
 
@@ -79,10 +97,11 @@ CREATE TRIGGER [trgPOI_LastUpdateDate]
 
 		DECLARE @Now DATETIME = CURRENT_TIMESTAMP;
 		
-		UPDATE x
-		SET LastUpdateDate=@Now
-		FROM AppData.POI x
-		JOIN inserted i ON i.POI_pk = x.POI_pk;
+                        IF NOT ( UPDATE(Longitude) OR UPDATE(Latitude) OR UPDATE(CoordinateSRID))
+                                UPDATE x
+                                SET LastUpdateDate=@Now
+                                FROM AppData.POI x
+                                JOIN inserted i ON i.POI_pk = x.POI_pk;
 
 	END
 GO
@@ -92,22 +111,25 @@ GO
 
 CREATE TRIGGER [trgPOI_MapPoint]
 	ON AppData.POI
-	FOR INSERT, UPDATE
+	AFTER INSERT, UPDATE
 	AS
 	BEGIN
 
 		SET NOCOUNT ON;
+
+                        DECLARE @Now DATETIME = CURRENT_TIMESTAMP;
 		
                         /*  Per Business rule, the SRID is required to be SRID. If the accuacy is considered good enough, then its OK to map it. */
-
-		UPDATE x
-		SET MapPoint = 
-                                CASE
-                                    WHEN  i.IsGeocodeUseableForMapping = 1 THEN geography::Point(i.Latitude, i.Longitude, 4326)
-                                    ELSE NULL
-                                 END
-		FROM AppData.POI x
-		JOIN inserted i ON i.POI_pk = x.POI_pk
+                        IF UPDATE(Longitude) OR UPDATE(Latitude) OR UPDATE(CoordinateSRID)
+                                UPDATE x
+                                SET MapPoint = 
+                                                            CASE
+                                                                    WHEN  x.IsGeocodeUseableForMapping = 1 THEN geography::Point(x.Latitude, x.Longitude, x.CoordinateSRID)
+                                                                    ELSE NULL
+                                                             END,
+                                        LastUpdateDate=@Now
+                                FROM AppData.POI x
+                                LEFT OUTER JOIN inserted i ON i.POI_pk = x.POI_pk;
 
 	END
 
@@ -147,9 +169,7 @@ GO
 
 */
 
- IF OBJECT_ID(N'AppData.GeocodeSource') IS NOT NULL
-    --IF NOT EXISTS (SELECT TOP 1 * FROM AppData.GeocodeSource)
-           DROP TABLE AppData.GeocodeSource;
+
 GO
 CREATE TABLE  AppData.GeocodeSource
 (
@@ -159,12 +179,17 @@ GeocodeSource NVARCHAR(40) NOT NULL
 ON Secondary;
 GO
 INSERT INTO AppData.GeocodeSource (GeocodeSource_pk, GeocodeSource) VALUES(0, 'None');
+
+INSERT INTO AppData.GeocodeSource (GeocodeSource_pk, GeocodeSource) VALUES
+(1, 'GPS'),
+(2,'BING Geocoding API'),
+(3,'Google Geocoding API'),
+(4,'OpenAddresses')
+;
+
 GO
 
-IF OBJECT_ID(N'AppData.DataSource') IS NOT NULL
-    --IF NOT EXISTS (SELECT TOP 1 * FROM AppData.DataSource)
-           DROP TABLE AppData.DataSource;
-GO
+
 CREATE TABLE  AppData.DataSource
 (
 DataSource_pk INT NOT NULL CONSTRAINT PK_DataSource PRIMARY KEY,

@@ -8,7 +8,7 @@ INSERT INTO AppData.POICategory (POICategory_pk, POICategoryName)   VALUES
 (2, N'Landuse'),
 (5, N'Building')
 ;
---SELECT * FROM AppData.POICategory;
+SELECT * FROM AppData.POICategory;
 
 
 INSERT INTO [AppData].[POISubcategory]([POISubcategory_pk], [POICategory_fk], [POISubcategoryName])  VALUES
@@ -17,6 +17,9 @@ INSERT INTO [AppData].[POISubcategory]([POISubcategory_pk], [POICategory_fk], [P
 ;
 GO
 
+SELECT * FROM [AppData].[POISubcategory]
+
+GO
 SELECT
 *
 FROM [AppData].[vSubCategoryCategoryXRef]

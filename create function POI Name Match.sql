@@ -12,7 +12,10 @@ CREATE FUNCTION App.fnPOI_Select_ByName
                 @Request AS App.Request READONLY,
 
                 --number of candidates (possible matches) to return
-                 @MaximumNumberOfMatches INT = 1
+                 @MaximumNumberOfMatches INT = 1,
+
+                 --Need to know language so we know how to filter
+                 @LanguageClassCode NCHAR(2) NOT NULL DEFAULT = 'EN'
 
                 )
 RETURNS @PossibleMatchingPOI  TABLE 
@@ -76,20 +79,64 @@ BEGIN
     These two steps are unqiue to the Gazetteer data set. There are more efficeint ways to handle them.
 
     -Key words like "Park" and "Cemetary" only server to distort the match score.
+    -Filter things like "the" 
     -Note that I'm ignoring the phrases like Post Office for now.
 
 
 */
                 UPDATE @POICandidateNameTokenXRef 
                 SET IgnoreTokenFlag = 1
-                WHERE TOKEN = '(Historical)';
+                WHERE TOKEN = '(Historical)'
+                AND  @LanguageClassCode = 'EN' ;    --English
 
-/*                
+              
                 UPDATE @POICandidateNameTokenXRef 
                 SET IgnoreTokenFlag = 1
-                FROM AppData.FeatureClassFilter c JOIN @POICandidateNameTokenXRef  f
-                ON f.TOKEN = c.FeatureClassName;
-*/
+                FROM AppData.TokenFilter f JOIN @POICandidateNameTokenXRef  c
+                ON f.Token = c.Token
+                WHERE f.LanguageClass_pk = @LanguageClassCode;
+ 
+                /*
+                    combine first two non-filtered words since sometimes words are divided. examples:
+                        Wal Mart vs WalMart
+                        Mc Donalds vs McDonalds
+                        H R Block
+
+                */
+                --Input String
+                --Find first non-filtered token
+                WITH FirstWord  (TokenKey, FirstToken, TokenOrdinal)
+                AS
+                (
+                SELECT TOP 1
+                TokenizerOutput_pk, Token, TokenOrdinal 
+                FROM @POICandidateNameTokenXRef
+                WHERE IgnoreTokenFlag=0  AND TokenOrdinal > 0
+                ORDER BY TokenOrdinal
+                ) 
+                --Combine with next token
+                --ToDo: Assumption that next word is not a token to exclud. Fix later.
+                SELECT
+                a.FirstToken + x.Token , TokenOrdinal = -1
+                FROM @POICandidateNameTokenXRef x JOIN FirstWord a ON
+                WHERE  x.TokenizerOutput_pk = a.TokenKey  + 1;       
+                   
+                --Candidate Token
+                WITH FirstWord  (TokenKey, FirstToken, TokenOrdinal)
+                AS
+                (
+                SELECT TOP 1
+                TokenizerOutput_pk, Token, TokenOrdinal 
+                FROM @InputStringTokenXref
+                WHERE IgnoreTokenFlag=0  AND TokenOrdinal > 0
+                ORDER BY TokenOrdinal
+                ) 
+                --Combine with next token
+                --ToDo: Assumption that next word is not a token to exclud. Fix later.
+                SELECT
+                a.FirstToken + x.Token , TokenOrdinal = -1
+                FROM @InputStringTokenXref x JOIN FirstWord a ON
+                WHERE  x.TokenizerOutput_pk = a.TokenKey  + 1; 
 
 
                 /*
