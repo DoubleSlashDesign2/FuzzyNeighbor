@@ -20,6 +20,8 @@ SET NOCOUNT ON;
 
 	DECLARE @ProcedureLog AS TABLE(Action VARCHAR(20), ProcedureLog_pk INT);
 
+            SET @EndTime = ISNULL(@EndTime, CURRENT_TIMESTAMP);
+
 	MERGE INTO [AppData].[ProcedureLog] AS TARGET
 	USING (VALUES (@ProcedureLog_fk, @ProcedureName, @ParameterSet, @StatusMessage, @ErrorMessage,  @EndTime, @ReturnCode) )
 	AS SOURCE (ProcedureLog_pk, ProcedureName, ParameterSet, StatusMessage, ErrorMessage, EndTime, ReturnCode)

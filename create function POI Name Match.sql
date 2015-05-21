@@ -14,8 +14,8 @@ CREATE FUNCTION App.fnPOI_Select_ByName
                 --number of candidates (possible matches) to return
                  @MaximumNumberOfMatches INT = 1,
 
-                 --Need to know language so we know how to filter
-                 @LanguageClassCode NCHAR(2) NOT NULL DEFAULT = 'EN'
+                 --Need to know language so we know how to filter. Default to English
+                 @LanguageClassCode NCHAR(2)  = 'EN'
 
                 )
 RETURNS @PossibleMatchingPOI  TABLE 
@@ -24,10 +24,11 @@ RETURNS @PossibleMatchingPOI  TABLE
     MatchRankOrder INT NOT NULL,
     MatchScore INT NOT NULL
 )
---WITH SCHEMABINDING
+WITH SCHEMABINDING
 AS
+
 BEGIN
-  
+
                 /*
                     Tokenize the request / input name.  Function assumes a table of strings to shread
                 */
@@ -61,7 +62,7 @@ BEGIN
                         SELECT 
                                 n.POI_pk,  n.POIName
                         FROM @POICandidates c
-                        JOIN AppData.POI n ON c.POI_fk = n.POI_pk
+                        JOIN AppData.POI n ON c.POI_fk = n.POI_pk;
 
                 /*
                     Tokenize the feature candidates
@@ -92,9 +93,8 @@ BEGIN
               
                 UPDATE @POICandidateNameTokenXRef 
                 SET IgnoreTokenFlag = 1
-                FROM AppData.TokenFilter f JOIN @POICandidateNameTokenXRef  c
-                ON f.Token = c.Token
-                WHERE f.LanguageClass_pk = @LanguageClassCode;
+                FROM AppData.TokenFilter f JOIN @POICandidateNameTokenXRef  c ON f.Token = c.Token
+                WHERE f.LanguageCode_fk = @LanguageClassCode;
  
                 /*
                     combine first two non-filtered words since sometimes words are divided. examples:
@@ -103,41 +103,43 @@ BEGIN
                         H R Block
 
                 */
-                --Input String
+                
+                --Start with Candidates;
+
                 --Find first non-filtered token
-                WITH FirstWord  (TokenKey, FirstToken, TokenOrdinal)
+               ; WITH FirstWord  (TokenKey, FirstToken, TokenOrdinal)
                 AS
                 (
-                SELECT TOP 1
-                TokenizerOutput_pk, Token, TokenOrdinal 
+                SELECT TOP (1)
+                    TokenizerOutput_pk, Token, TokenOrdinal 
                 FROM @POICandidateNameTokenXRef
                 WHERE IgnoreTokenFlag=0  AND TokenOrdinal > 0
                 ORDER BY TokenOrdinal
                 ) 
                 --Combine with next token
-                --ToDo: Assumption that next word is not a token to exclud. Fix later.
-                SELECT
-                a.FirstToken + x.Token , TokenOrdinal = -1
-                FROM @POICandidateNameTokenXRef x JOIN FirstWord a ON
-                WHERE  x.TokenizerOutput_pk = a.TokenKey  + 1;       
-                   
-                --Candidate Token
-                WITH FirstWord  (TokenKey, FirstToken, TokenOrdinal)
+                --ToDo: Assumption that next word is not a token to exclude. Fix later.
+                INSERT INTO @POICandidateNameTokenXRef  (Token, TokenOrdinal)
+                    SELECT
+                    a.FirstToken + x.Token , TokenOrdinal = -1
+                    FROM @POICandidateNameTokenXRef x JOIN FirstWord a ON x.TokenizerOutput_pk = a.TokenKey  + 1;       
+
+                -- Then do the Request.
+
+                ;WITH FirstWord  (TokenKey, FirstToken, TokenOrdinal)
                 AS
                 (
-                SELECT TOP 1
-                TokenizerOutput_pk, Token, TokenOrdinal 
+                SELECT TOP (1)
+                    TokenizerOutput_pk, Token, TokenOrdinal 
                 FROM @InputStringTokenXref
                 WHERE IgnoreTokenFlag=0  AND TokenOrdinal > 0
                 ORDER BY TokenOrdinal
                 ) 
                 --Combine with next token
-                --ToDo: Assumption that next word is not a token to exclud. Fix later.
-                SELECT
-                a.FirstToken + x.Token , TokenOrdinal = -1
-                FROM @InputStringTokenXref x JOIN FirstWord a ON
-                WHERE  x.TokenizerOutput_pk = a.TokenKey  + 1; 
-
+                --ToDo: Assumption that next word is not a token to exclude. Fix later.
+                INSERT INTO @InputStringTokenXref  (Token, TokenOrdinal)
+                    SELECT
+                    a.FirstToken + x.Token , TokenOrdinal = -1
+                    FROM @InputStringTokenXref x JOIN FirstWord a ON x.TokenizerOutput_pk = a.TokenKey  + 1;       
 
                 /*
                     Scoring. 
@@ -250,14 +252,16 @@ BEGIN
                     )
                     INSERT INTO @PossibleMatchingPOI (POI_fk, MatchScore, MatchRankOrder)
                             SELECT
-                                    TOP (@MaximumNumberOfMatches)
+                                    TOP (@MaximumNumberOfMatches)  
                                     POI_fk,
                                     MeanMatchIndex,
                                     RankOrder
                             FROM TopChoices
                             WHERE SelectionSequence = 1
                             ORDER BY RankOrder;
- 
-          RETURN
+
+        RETURN
+
+
 END
 GO

@@ -31,22 +31,25 @@ BEGIN
 
 	BEGIN TRY
 
-                SET @ParameterSet = 'Search X/Y= ' + CAST(@Longitude AS VARCHAR(20)) + ' / ' + CAST(@Latitude AS VARCHAR(20)) ;
-                EXEC [App].[ProcedureLog_Merge] @ProcedureLog_fk = @ProcedureLog_fk OUT, @ParameterSet = @ParameterSet, @StatusMessage = @StatusMessage, @ProcedureName = @ProcedureName;
+--                SET @ParameterSet = 'Search X/Y= ' + CAST(@Longitude AS VARCHAR(20)) + ' / ' + CAST(@Latitude AS VARCHAR(20)) ;
+--                EXEC [App].[ProcedureLog_Merge] @ProcedureLog_fk = @ProcedureLog_fk OUT, @ParameterSet = @ParameterSet, @StatusMessage = @StatusMessage, @ProcedureName = @ProcedureName;
 
                     --Candidates are returned back to the controller proc
-                SELECT
+                SELECT 
                     TOP (@NumberOfCandidates)
-                    b.POI_pk,
-                    CAST(ROUND(b.MapPoint.STDistance(@searchPoint),0) AS INT) AS DistanceInMeters
+                    POI_pk,
+                    CAST(ROUND(MapPoint.STDistance(@searchPoint),0) AS INT) AS DistanceInMeters
                     /* add compass bearing here */
-                FROM AppData.POI b  WITH (INDEX = sidxPOI_MapPoint)
-                WHERE 
-                    b.MapPoint.STDistance(@searchPoint) < @distanceInMeters
-                ORDER BY b.MapPoint.STDistance(@searchPoint);
+                FROM AppData.POI   WITH (INDEX = sidxPOI_MapPoint)
+                WHERE MapPoint.STDistance(@searchPoint) < @distanceInMeters
+                                AND MapPoint IS NOT NULL
+                                AND MapPoint.STDistance(@searchPoint) IS NOT NULL
+                ORDER BY MapPoint.STDistance(@searchPoint);
 
-                SET @StatusMessage = 'Success';
-                EXEC [App].[ProcedureLog_Merge] @ProcedureLog_fk = @ProcedureLog_fk, @StatusMessage = @StatusMessage, @ReturnCode = @RC;
+                SET @RC = @@RowCount;
+
+--                SET @StatusMessage = 'Success';
+--                EXEC [App].[ProcedureLog_Merge] @ProcedureLog_fk = @ProcedureLog_fk, @StatusMessage = @StatusMessage, @ReturnCode = @RC;
 
 	END TRY
   

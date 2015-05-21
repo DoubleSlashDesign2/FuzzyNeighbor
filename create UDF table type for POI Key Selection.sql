@@ -9,3 +9,4 @@ POISelection_pk INT NOT NULL IDENTITY(1,1)  PRIMARY KEY,
 POI_fk INT NOT NULL UNIQUE,
 DistanceInMeters INT NULL       --; used with nearest neighbor searches
 );
+--WITH ( MEMORY_OPTIMIZED = ON);
