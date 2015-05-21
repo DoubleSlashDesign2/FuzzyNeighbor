@@ -42,7 +42,7 @@ BEGIN
 
                 INSERT INTO @InputStringTokenXref (Tokenizer_sfk, TokenOrdinal, Token, Metaphone2)
                     SELECT 
-                        Tokenizer_sfk,
+                        CAST(SourceKey AS INT),
                         TokenOrdinal,
                         Token,
                         App.fnDoubleMetaphoneEncode(Token)
@@ -107,38 +107,35 @@ BEGIN
                 --Start with Candidates;
 
                 --Find first non-filtered token
-               ; WITH FirstWord  (TokenKey, FirstToken, TokenOrdinal)
+                ; WITH FirstWord  (Tokenizer_sfk, TokenKey, FirstToken, TokenOrdinal)
                 AS
                 (
-                SELECT TOP (1)
-                    TokenizerOutput_pk, Token, TokenOrdinal 
+                SELECT TOP (1) Tokenizer_sfk, TokenizerOutput_pk, Token, TokenOrdinal 
                 FROM @POICandidateNameTokenXRef
                 WHERE IgnoreTokenFlag=0  AND TokenOrdinal > 0
                 ORDER BY TokenOrdinal
                 ) 
                 --Combine with next token
                 --ToDo: Assumption that next word is not a token to exclude. Fix later.
-                INSERT INTO @POICandidateNameTokenXRef  (Token, TokenOrdinal)
-                    SELECT
-                    a.FirstToken + x.Token , TokenOrdinal = -1
+                INSERT INTO @POICandidateNameTokenXRef  (Tokenizer_sfk,Token, TokenOrdinal, Metaphone2)
+                    SELECT a.Tokenizer_sfk, a.FirstToken + x.Token , -1, App.fnDoubleMetaphoneEncode(a.FirstToken + x.Token)
                     FROM @POICandidateNameTokenXRef x JOIN FirstWord a ON x.TokenizerOutput_pk = a.TokenKey  + 1;       
+
 
                 -- Then do the Request.
 
-                ;WITH FirstWord  (TokenKey, FirstToken, TokenOrdinal)
+                ;WITH FirstWord  (Tokenizer_sfk, TokenKey, FirstToken, TokenOrdinal)
                 AS
                 (
-                SELECT TOP (1)
-                    TokenizerOutput_pk, Token, TokenOrdinal 
+                SELECT TOP (1) Tokenizer_sfk, TokenizerOutput_pk, Token, TokenOrdinal 
                 FROM @InputStringTokenXref
                 WHERE IgnoreTokenFlag=0  AND TokenOrdinal > 0
                 ORDER BY TokenOrdinal
                 ) 
                 --Combine with next token
                 --ToDo: Assumption that next word is not a token to exclude. Fix later.
-                INSERT INTO @InputStringTokenXref  (Token, TokenOrdinal)
-                    SELECT
-                    a.FirstToken + x.Token , TokenOrdinal = -1
+                INSERT INTO @InputStringTokenXref  (Tokenizer_sfk, Token, TokenOrdinal, Metaphone2)
+                    SELECT a.Tokenizer_sfk, a.FirstToken + x.Token ,  -1, App.fnDoubleMetaphoneEncode(a.FirstToken + x.Token)
                     FROM @InputStringTokenXref x JOIN FirstWord a ON x.TokenizerOutput_pk = a.TokenKey  + 1;       
 
                 /*
