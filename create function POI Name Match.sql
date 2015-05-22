@@ -14,8 +14,8 @@ CREATE FUNCTION App.fnPOI_Select_ByName
                 --number of candidates (possible matches) to return
                  @MaximumNumberOfMatches INT = 1,
 
-                 --Need to know language so we know how to filter. Default to English
-                 @LanguageClassCode NCHAR(2)  = 'EN'
+                 --Allow the Levenshtein distance to be varied
+                @LevenshteinMinimum INT = 66
 
                 )
 RETURNS @PossibleMatchingPOI  TABLE 
@@ -29,7 +29,7 @@ AS
 
 BEGIN
 
-                /*
+                  /*
                     Tokenize the request / input name.  Function assumes a table of strings to shread
                 */
 
@@ -40,11 +40,11 @@ BEGIN
                 INSERT INTO @InputStringList(SourceKey, SourceString)
                    SELECT ISNULL(Request_pk,1), RequestValue FROM @Request;
 
-                INSERT INTO @InputStringTokenXref (Tokenizer_sfk, TokenOrdinal, Token, Metaphone2)
+               INSERT INTO @InputStringTokenXref (Tokenizer_sfk, TokenOrdinal, Token, Metaphone2)
                     SELECT 
                         CAST(SourceKey AS INT),
                         TokenOrdinal,
-                        Token,
+                        UPPER(Token),
                         App.fnDoubleMetaphoneEncode(Token)
                     FROM App.fnTokenizeTableOfStrings(@InputStringList);
 
@@ -72,38 +72,35 @@ BEGIN
                     SELECT 
                         CAST(SourceKey AS INT),             ----TODO inconsisteny in data types!  
                         TokenOrdinal,
-                        Token,
+                        UPPER(Token),
                         App.fnDoubleMetaphoneEncode(Token)
                     FROM App.fnTokenizeTableOfStrings(@POICandidateNames)  ;
 
 /*
-    These two steps are unqiue to the Gazetteer data set. There are more efficeint ways to handle them.
 
     -Key words like "Park" and "Cemetary" only server to distort the match score.
     -Filter things like "the" 
     -Note that I'm ignoring the phrases like Post Office for now.
 
-
 */
                 UPDATE @POICandidateNameTokenXRef 
                 SET IgnoreTokenFlag = 1
-                WHERE TOKEN = '(Historical)'
-                AND  @LanguageClassCode = 'EN' ;    --English
+                FROM AppData.TokenFilter f JOIN @POICandidateNameTokenXRef  c ON f.Token = c.Token;
 
-              
                 UPDATE @POICandidateNameTokenXRef 
                 SET IgnoreTokenFlag = 1
-                FROM AppData.TokenFilter f JOIN @POICandidateNameTokenXRef  c ON f.Token = c.Token
-                WHERE f.LanguageCode_fk = @LanguageClassCode;
- 
+                FROM AppData.POISubcategory f JOIN @POICandidateNameTokenXRef  c ON f.POISubcategoryName = c.Token;     
+
                 /*
                     combine first two non-filtered words since sometimes words are divided. examples:
                         Wal Mart vs WalMart
                         Mc Donalds vs McDonalds
                         H R Block
 
+                        This trick will be applied only if the first two tokens are matched
+
                 */
-                
+      
                 --Start with Candidates;
 
                 --Find first non-filtered token
@@ -121,7 +118,6 @@ BEGIN
                     SELECT a.Tokenizer_sfk, a.FirstToken + x.Token , -1, App.fnDoubleMetaphoneEncode(a.FirstToken + x.Token)
                     FROM @POICandidateNameTokenXRef x JOIN FirstWord a ON x.TokenizerOutput_pk = a.TokenKey  + 1;       
 
-
                 -- Then do the Request.
 
                 ;WITH FirstWord  (Tokenizer_sfk, TokenKey, FirstToken, TokenOrdinal)
@@ -136,10 +132,10 @@ BEGIN
                 --ToDo: Assumption that next word is not a token to exclude. Fix later.
                 INSERT INTO @InputStringTokenXref  (Tokenizer_sfk, Token, TokenOrdinal, Metaphone2)
                     SELECT a.Tokenizer_sfk, a.FirstToken + x.Token ,  -1, App.fnDoubleMetaphoneEncode(a.FirstToken + x.Token)
-                    FROM @InputStringTokenXref x JOIN FirstWord a ON x.TokenizerOutput_pk = a.TokenKey  + 1;       
-
+                    FROM @InputStringTokenXref x JOIN FirstWord a ON x.TokenizerOutput_pk = a.TokenKey  + 1;            
+  
                 /*
-                    Scoring. 
+                    Scoring. Start with original tokens and leave the created tokens to later step
                 */
 
                 ;WITH ValidInputTokens (InputTokenizer_sfk, TokenOrdinal, Token, Metaphone2)
@@ -167,63 +163,84 @@ BEGIN
                         App.fnLevenshteinPercent(i.Token, c.Token) AS LevenshteinPercent
                     FROM ValidInputTokens  i CROSS APPLY @POICandidateNameTokenXRef c
                     WHERE
-                                App.fnLevenshteinPercent(i.Token, c.Token) > 66
-                                AND c.TokenLength > 2
-                                          AND c.IgnoreTokenFlag = 0
+                                 App.fnLevenshteinPercent(i.Token, c.Token)  > @LevenshteinMinimum
+                                AND c.IgnoreTokenFlag = 0
                    )
                  ,MetaphoneScores (Candidate_pk, MetaphoneScore)
                 AS
                 (
                     SELECT 
                         c.Tokenizer_sfk,
+                        --Values returned: 3=Strong match, 2 = Medium Match ... 0 = No match
                         App.fnDoubleMetaphoneCompare(i.Metaphone2, c.Metaphone2) AS  MetaphoneScore
                     FROM ValidInputTokens  i CROSS APPLY @POICandidateNameTokenXRef c
                     WHERE
-                                App.fnDoubleMetaphoneCompare(i.Metaphone2, c.Metaphone2)  > 0
-                                AND c.TokenLength > 2
+                                (
+                                    CASE 
+                                            --considersimple case first
+                                            WHEN  i.Token = c.Token THEN 3      --maximum metaphone score
+                                            --Short tokens throw off metaphones
+                                            WHEN c.TokenLength > 2 THEN App.fnDoubleMetaphoneCompare(i.Metaphone2, c.Metaphone2)     
+                                            ELSE 0
+                                    END
+                                ) > 0
                                 AND c.IgnoreTokenFlag = 0
+                                AND c.TokenOrdinal > 0                  -- at this stage, skip the made up tokens, where I combined the first two tokens into one.
                    )
                 , MetaphoneAggregate (Candidate_pk, MetaphoneIndex, PercentTokensPassed )
                  AS
                  (
-                        SELECT  
-                                        a.Candidate_pk, MetaphoneIndex,
-                                        CAST(ROUND( CAST(CountOfTokensThatPassed AS FLOAT) / CAST (InputTokenCount AS FLOAT)  , 2) AS INT)  PercentTokensPassed
-                        FROM
+                        SELECT 
+                                        a.Candidate_pk, 
+                                        MetaphoneIndex,
+                                        CAST(ROUND( 100 *(CAST(CountOfTokensThatPassed AS FLOAT) / CAST (InputTokenCount AS FLOAT)) , 3) AS INT)  PercentTokensPassed
+                       FROM
                         (
                             SELECT 
                                 s.Candidate_pk,
-                                COUNT(*)  as CountOfTokensThatPassed,
-                                CAST(ROUND(CAST(AVG(s.MetaphoneScore) AS FLOAT) * 100,3) AS INT) AS MetaphoneIndex     --normalize to 100
-                            FROM MetaphoneScores s
+                                COUNT(*)  AS CountOfTokensThatPassed,  
+                                MAX(InputTokenCount) AS InputTokenCount,
+                                CAST (SUM(s.MetaphoneIndex) AS FLOAT) / CAST (MAX(InputTokenCount) AS FLOAT) AS MetaphoneIndex  
+                            FROM 
+                                    (
+                                             -- Normalize to 50: 3 = 100, 2 = 66 (i.e., based on judgment)
+                                            SELECT 
+                                                s.Candidate_pk,
+                                                i. MetaphoneIndex
+                                            FROM MetaphoneScores s
+                                            CROSS APPLY ( VALUES (3,100), (2,66), (1,0), (0,0) ) AS i (MetaphoneScore, MetaphoneIndex)
+                                            WHERE i.MetaphoneScore = s.MetaphoneScore
+                                    ) s
+                                    CROSS APPLY InputTokenCounts q 
                             GROUP BY s.Candidate_pk
                             ) a 
-                            CROSS APPLY InputTokenCounts q 
                   )
-                 , LevenshteinAggregate  (Candidate_pk, LevenshteinIndex, PercentTokensPassed)
+                 , LevenshteinAggregate (Candidate_pk, LevenshteinIndex, PercentTokensPassed)
                  AS
                  (
                         SELECT
-                                a.Candidate_pk, LevenshteinIndex,
-                                CAST(ROUND(CAST(CountOfTokensThatPassed AS FLOAT) / CAST (InputTokenCount AS FLOAT)  , 2) AS INT)  PercentTokensPassed
+                                l.Candidate_pk, 
+                                LevenshteinIndex,
+                                CAST(ROUND(100 * (CAST(CountOfTokensThatPassed AS FLOAT) / CAST (InputTokenCount AS FLOAT))  , 3) AS INT)  PercentTokensPassed
                         FROM
                         (
                             SELECT 
-                                s.Candidate_pk,
+                                l.Candidate_pk,
                                 COUNT(*)  as CountOfTokensThatPassed,
-                                AVG(s.LevenshteinPercent) AS LevenshteinIndex       --its a percentage, so sort of equivalent to a normalized value
-                            FROM LevenshteinPercent s 
-                            GROUP BY s.Candidate_pk
-                          ) a 
+                                MAX(q.InputTokenCount) AS InputTokenCount,
+                                CAST (SUM(l.LevenshteinPercent) AS FLOAT) / CAST (MAX(q.InputTokenCount) AS FLOAT) AS LevenshteinIndex  
+                            FROM LevenshteinPercent l 
                             CROSS APPLY InputTokenCounts q  
+                            GROUP BY l.Candidate_pk
+                          ) l
                     )
-                    ,PossibleMatches  (Candidate_pk, MatchIndex)
+                    ,PossibleMatches  (Candidate_pk, MatchIndex, Algorithm)
                     AS
                     (
-                        SELECT Candidate_pk, LevenshteinIndex AS MatchIndex
+                        SELECT Candidate_pk, LevenshteinIndex AS MatchIndex,  'Levenshtein' AS Algorithm
                         FROM LevenshteinAggregate  a
                             UNION 
-                        SELECT Candidate_pk, MetaphoneIndex AS MatchIndex
+                        SELECT Candidate_pk, MetaphoneIndex AS MatchIndex, 'Metaphone' AS Algorithm
                         FROM MetaphoneAggregate  a
                     )
                     ,SelectionRank  (Candidate_pk, MeanMatchIndex, RankOrder)
@@ -258,7 +275,6 @@ BEGIN
                             ORDER BY RankOrder;
 
         RETURN
-
 
 END
 GO

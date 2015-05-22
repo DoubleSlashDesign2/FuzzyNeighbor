@@ -7,12 +7,12 @@ PRINT 'Request';
 
 DECLARE @Request AS [App].[Request] ;
 
---INSERT INTO @Request(RequestValue) VALUES('Century Link');
-INSERT INTO @Request(RequestValue) VALUES('Bernabeu');
+
+INSERT INTO @Request(RequestValue) VALUES('Santiago Burnabay');
 
 SELECT * FROM @Request;
 
---POI Candidates near the request.
+--Define search area .
 
 PRINT 'Candidates';
 
@@ -23,24 +23,17 @@ DECLARE
         @distanceInKilometers  int =  2 ,
         @NumberOfCandidates int  = 10;
 
-INSERT INTO @Candidates 
-   SELECT POI_fk, DistanceInMeters FROM [App].[fnPOI_Select_ByNearestNeighbor]  ( @latitude,  @longitude ,  @distanceInKilometers ,  @NumberOfCandidates);
+DECLARE @RC INT;
+EXEC @RC = [App].[SearchController]
 
---Logic error to correct.  Instead of filtering out of candidates by category, change ranking of matches
+        @Request,
+        @Latitude  = @latitude,
+        @Longitude = @longitude ,
+        @DistanceInKilometers = @distanceInKilometers,
+        @NumberOfCandidates = @NumberOfCandidates,
+        @LevenshteinMinimum  = 66,
+        @PreferredPOICategory_fk  = 0;
 
-SELECT p.POI_pk, POIName, c.DistanceInMeters FROM @Candidates c JOIN AppData.POI p ON c.POI_fk = p.POI_pk;
+SELECT @RC AS RC;
 
---match attempt
-PRINT 'Match Attempt';
-
-SELECT *
-FROM App.fnPOI_Select_ByName 
-(
-@Candidates,
-@Request,
-10,
-N'ES'
-);
-
---   SELECT TOP 5 * FROM [AppData].[ProcedureLog]  ORDER BY ProcedureLog_pk DESC;
-
+ 
